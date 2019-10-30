@@ -362,6 +362,7 @@ Transmit Timestamp (64)          : {tx_timestamp}'''.format(
 class SntpCore(object):
     def __init__(self,address, port, wait_interval, client=False):
         sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.bind_address = address
         sock.bind((address,port))
         logger.info("local socket: %s", sock.getsockname());
@@ -391,8 +392,9 @@ class SntpCore(object):
             for k, vals in details.items():
                 if k == netifaces.AF_INET:
                     for addr in vals:
-                        interface_broadcast_addresses[
-                                addr['addr']] = addr['broadcast']
+                        if 'broadcast' in addr:
+                            interface_broadcast_addresses[
+                                    addr['addr']] = addr['broadcast']
         if bind_address != '0.0.0.0':
             return {bind_address:
                     interface_broadcast_addresses[bind_address]}
