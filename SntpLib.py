@@ -9,16 +9,25 @@ import logging.handlers
 import argparse
 import netifaces
 import random
-import queue
+
+if sys.version_info[0] == 2:
+    import Queue as queue
+else:
+    import queue
+
 from collections import OrderedDict as OD
 
 logger = logging.getLogger(__name__)
 
-class TimeToHighLow:
+class TimeToHighLow(object):
     """Use descriptor rather than having to repeat a bunch of properties"""
     """delta between system and NTP time"""
-    def __set_name__(self, owner, name):
+    # on python 2 __set_name__ would be more tricky than this explicit naming
+    def __init__(self, name):
         self.name = name
+
+    #def __set_name__(self, owner, name):
+    #    self.name = name
 
     def __get__(self, instance, owner):
             return self._to_time(
@@ -94,7 +103,7 @@ class NTPException(Exception):
     pass
 
 
-class NTP:
+class NTP(object):
     """Helper class defining constants."""
 
     """reference identifier table"""
@@ -137,7 +146,7 @@ class NTP:
         3: "alarm condition (clock not synchronized)",
     }
 
-class NTPPacket:
+class NTPPacket(object):
     """NTP packet class.
 
     This represents an NTP packet.
@@ -145,11 +154,13 @@ class NTPPacket:
     """packet format to pack/unpack"""
     _PACKET_FORMAT = "!B B B b 11I"
 
-    #setup some properties by using common descriptor
-    orig_timestamp = TimeToHighLow()
-    recv_timestamp = TimeToHighLow()
-    tx_timestamp = TimeToHighLow()
-    ref_timestamp = TimeToHighLow()
+    # Setup some properties by using common descriptor
+    # Creates getter and setter to care of splitting *_timestamp to 
+    # *_timestamp_low and _high upon assignment
+    orig_timestamp = TimeToHighLow('orig_timestamp')
+    recv_timestamp = TimeToHighLow('recv_timestamp')
+    tx_timestamp = TimeToHighLow('tx_timestamp')
+    ref_timestamp = TimeToHighLow('ref_timestamp')
 
     _SYSTEM_EPOCH = datetime.date(*time.gmtime(0)[0:3])
     _NTP_EPOCH = datetime.date(1900, 1, 1)
@@ -242,15 +253,21 @@ class NTPPacket:
       |                                                               |
       |                                                               |
       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+'''
-        packet_str = f'''\
-LI|VN|Mode|Stratum|Poll|Precision: {self.leap}|{self.version}|{self.mode}-{NTP.MODE_TABLE[self.mode]}|{self.stratum}|{self.poll}|{self.precision}
-Root Delay                       : {self.root_delay}
-Root Dispersion                  : {self.root_dispersion}
-Reference Identifier             : {self.ref_id}
-Reference Timestamp (64)         : {self.get_timestamp_string(self.ref_timestamp)} : {self.ref_timestamp} 
-Originate Timestamp (64)         : {self.get_timestamp_string(self.orig_timestamp)} : {self.orig_timestamp}
-Receive Timestamp (64)           : {self.get_timestamp_string(self.recv_timestamp)} : {self.recv_timestamp}
-Transmit Timestamp (64)          : {self.get_timestamp_string(self.tx_timestamp)} : {self.tx_timestamp}'''
+        # python3 format string is much better but python2 does not support it
+        packet_str = '''\
+LI|VN|Mode|Stratum|Poll|Precision: {leap}|{version}|{mode}|{stratum}|{poll}|{precision}
+Root Delay                       : {root_delay}
+Root Dispersion                  : {root_dispersion}
+Reference Identifier             : {ref_id}
+Reference Timestamp (64)         : {ref_timestamp}
+Originate Timestamp (64)         : {orig_timestamp}
+Receive Timestamp (64)           : {recv_timestamp}
+Transmit Timestamp (64)          : {tx_timestamp}'''.format(
+                      leap=self.leap, version=self.version, mode=self.mode, stratum=self.stratum, 
+                      poll=self.poll, precision=self.precision, root_delay=self.root_delay,
+                      root_dispersion=self.root_dispersion, ref_id=self.ref_id, 
+                      ref_timestamp=self.ref_timestamp, orig_timestamp=self.orig_timestamp,
+                      recv_timestamp=self.recv_timestamp, tx_timestamp=self.tx_timestamp);
         return packet_str
 
     def get_timestamp_string(self, timestamp):
@@ -342,7 +359,7 @@ Transmit Timestamp (64)          : {self.get_timestamp_string(self.tx_timestamp)
                 continue
             setattr(self, item_name, val + delta)
 
-class SntpCore:
+class SntpCore(object):
     def __init__(self,address, port, wait_interval, client=False):
         sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
         self.bind_address = address
@@ -428,8 +445,13 @@ class SntpCore:
 class InjectError(SntpCore):
     """Class which injects errors into the response"""
 
-    def __init__(self, *args, p_error=0, error_list=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        if 'p_error' not in kwargs:
+            p_error=0
+        if 'error_list' not in kwargs:
+            error_list=None
+        SntpCore.__init__(self, *args, **kwargs)
+        
         if error_list:
             self.error_list = [getattr(self, n) for n in error_list]
         else:
@@ -438,8 +460,6 @@ class InjectError(SntpCore):
                     self.li_error,
                     self.stratum_error,
                     self.vn_error)
-
-
 
         self.p_error = p_error
 
@@ -464,7 +484,6 @@ class InjectError(SntpCore):
     def pre_send_hook(self, pkt):
         if random.random() < self.p_error:
             random.choice(self.error_list)(pkt)
-
 
 def get_parser():
     parser = argparse.ArgumentParser()

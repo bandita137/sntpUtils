@@ -2,14 +2,13 @@ import time
 import sys
 import logging
 import argparse
-from functools import partial
 from SntpLib import InjectError, NTPPacket, NTP, setup_logger, get_parser
 
 logger = logging.getLogger()
 
 class SntpServer(InjectError):
     def handle_received_packet(self, timestamp, addr, data):
-        recvPacket = super().handle_received_packet(timestamp,addr,data)
+        recvPacket = super(SntpServer, self).handle_received_packet(timestamp,addr,data)
         if addr[0] in self.interface_addresses:
             logger.debug("Ignoring broadcast from self")
             return
@@ -54,11 +53,9 @@ if __name__ == '__main__':
         setup_logger(logger, level=logging.INFO, file_path=log_file)
 
     if p.e > 0:
-        cls = partial(SntpServer, p_error=p.e, error_list = p.errors)
+        server = SntpServer(p.address, p.port, p.b, p_error=p.e, error_list = p.errors)
     else:
-        cls = SntpServer
-
-    server = cls(p.address, p.port, p.b)
+        server = SntpServer(p.address, p.port, p.b)
 
     while True:
         try:
@@ -66,4 +63,3 @@ if __name__ == '__main__':
         except KeyboardInterrupt:
             logger.info("Exiting...")
             break
-

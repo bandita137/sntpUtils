@@ -9,7 +9,7 @@ logger = logging.getLogger()
 
 class SntpClient(InjectError):
     def handle_received_packet(self, timestamp, addr, data):
-        recvPacket = super().handle_received_packet(timestamp,addr,data)
+        recvPacket = super(SntpClient, self).handle_received_packet(timestamp,addr,data)
         if addr[0] in self.interface_addresses:
             logger.debug("Ignoring request from self")
             return
