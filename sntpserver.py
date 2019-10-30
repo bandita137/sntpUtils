@@ -53,9 +53,9 @@ if __name__ == '__main__':
         setup_logger(logger, level=logging.INFO, file_path=log_file)
 
     if p.e > 0:
-        server = SntpServer(p.address, p.port, p.b, p_error=p.e, error_list = p.errors)
+        server = SntpServer(p.address, p.port, p.b, broadcast_address=p.bcastaddr, p_error=p.e, error_list = p.errors)
     else:
-        server = SntpServer(p.address, p.port, p.b)
+        server = SntpServer(p.address, p.port, p.b, broadcast_address=p.bcastaddr)
 
     while True:
         try:

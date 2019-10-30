@@ -2,7 +2,6 @@ import time
 import sys
 import logging
 import argparse
-from functools import partial
 from SntpLib import InjectError, NTPPacket, NTP, setup_logger, get_parser
 
 logger = logging.getLogger()
@@ -45,17 +44,16 @@ if __name__ == '__main__':
     log_file = None
     if p.l:
         log_file = p.l[0]
+  
     if p.v:
         setup_logger(logger, level=logging.DEBUG, file_path=log_file)
     else:
         setup_logger(logger, level=logging.INFO, file_path=log_file)
 
     if p.e > 0:
-        cls = partial(SntpClient, p_error=p.e, error_list = p.errors)
+        server = SntpServer(p.address, p.port, p.b, broadcast_address=p.bcastaddr, p_error=p.e, error_list = p.errors)
     else:
-        cls = SntpClient
-
-    server = cls(p.address, p.port, p.b)
+        server = SntpServer(p.address, p.port, p.b, broadcast_address=p.bcastaddr)
 
     while True:
         try:

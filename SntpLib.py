@@ -7,7 +7,10 @@ import sys
 import logging
 import logging.handlers
 import argparse
-import netifaces
+try:
+    import netifaces
+except ImportError:
+    print("Failed to import netifaces, --bcastaddr should be set for broadcasts")
 import random
 
 if sys.version_info[0] == 2:
@@ -360,7 +363,7 @@ Transmit Timestamp (64)          : {tx_timestamp}'''.format(
             setattr(self, item_name, val + delta)
 
 class SntpCore(object):
-    def __init__(self,address, port, wait_interval, client=False):
+    def __init__(self,address, port, wait_interval, broadcast_address=None, client=False):
         sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.bind_address = address
@@ -374,7 +377,11 @@ class SntpCore(object):
         self.send_queue = queue.Queue()
 
         if wait_interval:
-            self.interface_addresses = self.get_network_addresses(address)
+            if broadcast_address is None:
+                self.interface_addresses = self.get_network_addresses(address)
+            else:
+                self.interface_addresses = {address: broadcast_address}
+                
             for k,v in self.interface_addresses.items():
                 logger.debug("interface: %s, broadcast: %s",k,v)
         else:
@@ -385,7 +392,12 @@ class SntpCore(object):
         pass
 
     def get_network_addresses(self, bind_address):
-        ifaces = netifaces.interfaces()
+        try:
+            ifaces = netifaces.interfaces()
+        except NameError as n:
+            print("Please install netifaces or specify --bcastaddr on command line")
+            print("ImportError: No module named netifaces")
+            exit(1)
         interface_broadcast_addresses = OD()
         for iface in ifaces:
             details = netifaces.ifaddresses(iface)
@@ -493,6 +505,7 @@ def get_parser():
         help='The port to listen on, defaults to 123')
     parser.add_argument('-a', '--address', default='0.0.0.0',
         help='The address to listen on, defaults to 0.0.0.0 (all interfaces)')
+    parser.add_argument('--bcastaddr', default=None, help='broadcast address to be used')
     parser.add_argument('-v', action='store_true', help='use verbose logging')
     parser.add_argument('-l', nargs=1, metavar='log_file_path',
             help='additionally log to a file')
